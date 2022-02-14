@@ -5,10 +5,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <time.h>
 #include "utils.h"
 
 #define BACKLOG 100
-#define MAX_LIMIT 100
+#define MAX_LIMIT 3000
 
 struct _InitialInfo {
     int Id;
@@ -24,6 +25,9 @@ int setup(const char *hostname, const char *port);
 void waitPlayers(int numPlayers, int main_socket_fd, int *clientFds);
 void freeFds(int *clientFds, int numPlayers);
 void connectPlayers(int numPlayers, int *clientFds);
+void waitPotato(int *clientFds, int numPlayers, char *potato);
+int maxFd(int *clientFds, int numPlayers);
+void displayResult(char *potato);
 
 int main(int argc, char const *argv[]) {
     if (argc != 4) {
@@ -59,10 +63,88 @@ The number of hops should be between 0 and 512");
     // manage to connect all the players as a ring
     connectPlayers(numPlayers, clientFds);
 
+    // randomly pick a player to start the game
+    srand((unsigned int)time(NULL));
+    int initPlayer = rand() % numPlayers;
+
+    // create the potato
+    char potato[MAX_LIMIT] = {0};
+    sprintf(potato, "%d", numHops);
+
+    // sending the potato to the first player
+    printf("Ready to start the game, sending potato to player %d\n", initPlayer);
+    sendMessage(clientFds[initPlayer], potato);
+
+    // waiting for the potato to come back
+    memset(potato, 0, sizeof(potato));
+    waitPotato(clientFds, numPlayers, potato);
+
+    // display results
+    displayResult(potato);
+
     // free all the resources
     close(main_socket_fd);
     freeFds(clientFds, numPlayers);
     return 0;
+}
+
+// Trace of potato:
+// 2,1,2,0,2,1,0,2,...
+void displayResult(char *potato) {
+    printf("Trace of potato:\n");
+    // Extract the first token
+    char *token = strtok(potato, " ");
+    // start from the second token
+    token = strtok(NULL, " ");
+    printf("%s", token);
+    token = strtok(NULL, " ");
+    // loop through the string to extract all other tokens
+    while(token != NULL) {
+        printf(",%s", token);
+        token = strtok(NULL, " ");
+    }
+    printf("\n");
+}
+
+void waitPotato(int *clientFds, int numPlayers, char *potato) {
+    fd_set master;    // master file descriptor list
+    fd_set read_fds;  // temp file descriptor list for select()
+    FD_ZERO(&master);    // clear the master and temp sets
+    FD_ZERO(&read_fds);
+
+    // add the players to the master set
+    for (int i = 0; i < numPlayers; i++) {
+        FD_SET(clientFds[i], &master);
+    }
+
+    // keep track of the biggest file descriptor
+    int fdmax = maxFd(clientFds, numPlayers);
+
+    // waiting for hot potato
+    while(1) {
+        read_fds = master; // copy it
+        int status = select(fdmax+1, &read_fds, NULL, NULL, NULL);
+        if (status == -1) {
+            exitWithError("Select failed");
+        }
+        for (int i = 0; i < numPlayers; i++) {
+            if (FD_ISSET(clientFds[i], &read_fds)) {
+                recvMessage(clientFds[i], potato, MAX_LIMIT);
+                if (strlen(potato) == 0) {
+                    exitWithError("One player left");
+                }
+                return;
+            }
+        }
+    }
+}
+
+int maxFd(int *clientFds, int numPlayers) {
+    int maxFd = clientFds[0];
+    for (int i = 1; i < numPlayers; i++) {
+        maxFd = maxFd > clientFds[i] ? maxFd : clientFds[i];
+    }
+    return maxFd;
 }
 
 // manage to connect all the players as a ring
@@ -84,6 +166,18 @@ void connectPlayers(int numPlayers, int *clientFds) {
         assert(message[0] == 'D');
 
         printf("Player %d connected to its neighbor Player %d\n", i, (i + 1) % numPlayers);
+    }
+
+    printf("All players have formed a ring.\n");
+    // inform all the players the setup is done
+    for (int i = 0; i < numPlayers; i++) {
+        sendMessage(clientFds[i], "D");
+        // receive feedback from player
+        char message[MAX_LIMIT] = {0};
+        recvMessage(clientFds[i], message, sizeof(message));
+        assert(message[0] == 'D');
+
+        printf("Player %d is ready to play\n", i);
     }
 }
 
