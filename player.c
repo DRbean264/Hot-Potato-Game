@@ -7,12 +7,14 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <time.h>
+#include <assert.h>
 #include "utils.h"
 
 #define MAX_LIMIT 3000
 
 struct _Player {
     int Id;
+    int numPlayers;
     int master_fd;
     int leftNeighbor_fd;
     int rightNeighbor_fd;
@@ -23,7 +25,7 @@ int isValidPortNumber(const char *portNum, int *result);
 void setup(const char *machineName, const char *portNum, Player *me);
 void executeListen(Player *me);
 void executeConnect(char *message, Player *me);
-int getId(char *message);
+void getId(char *message, Player *me);
 void processPotato(char *message, Player *me);
 void play(Player *me);
 void freePlayer(Player *me);
@@ -91,18 +93,19 @@ void play(Player *me) {
         } else if (FD_ISSET(me->master_fd, &read_fds)) {
             get = 1;
             recvMessage(me->master_fd, message, MAX_LIMIT);
+            // The ringmaster shut down, the game ends
             if (strlen(message) == 0) {
-                exitWithError("The ringmaster shut down");
+                return;
             }
             // if the game ends
             if (message[0] == 'F') {
                 break;
             }
-            printf("Get the initial potato.\n");
+            // printf("Get the initial potato.\n");
         }
 
         if (get) {
-            printf("Potato: %s\n", message);
+            // printf("Potato: %s\n", message);
             processPotato(message, me);
         }
     }
@@ -120,6 +123,7 @@ void processPotato(char *message, Player *me) {
     int hopsNum = atoi(hops);
     // check if the hops is zero
     if (hopsNum == 0) {
+        printf("I'm it\n");
         // because the strtok is distructive
         message[hopsLength] = ' ';
         // send back to ringmaster
@@ -141,8 +145,10 @@ void processPotato(char *message, Player *me) {
     int leftNeighbor = rand() % 2;
     if (leftNeighbor) {
         sendMessage(me->leftNeighbor_fd, message);
+        printf("Sending potato to %d\n", (me->Id + me->numPlayers - 1) % me->numPlayers);
     } else {
         sendMessage(me->rightNeighbor_fd, message);
+        printf("Sending potato to %d\n", (me->Id + 1) % me->numPlayers);
     }
 }
 
@@ -170,11 +176,11 @@ void setup(const char *machineName, const char *portNum, Player *me) {
     }
 
     // waiting for command from ringmaster, until "D" -- "Done"
-    printf("Waiting for command from ringmaster...\n");
+    // printf("Waiting for command from ringmaster...\n");
     while (1) {
         char message[MAX_LIMIT];
         recvMessage(master_fd, message, MAX_LIMIT);
-        printf("Player received: %s\n", message);
+        // printf("Player received: %s\n", message);
 
         // if setup done
         if (message[0] == 'D') {
@@ -182,9 +188,9 @@ void setup(const char *machineName, const char *portNum, Player *me) {
             sendMessage(me->master_fd, "D");
             break;
         }
-        // if is ID info
+        // if is ID info, and total player num
         else if (message[0] == 'I') {
-            me->Id = getId(message);
+            getId(message, me);
             // send feedback to ringmaster
             sendMessage(me->master_fd, "D");
         }
@@ -299,7 +305,8 @@ void executeListen(Player *me) {
     close(listen_fd);
 }
 
-int getId(char *message) {
+void getId(char *message, Player *me) {
+    // printf("%s\n", message);
     // Extract the first token
     char *id = strtok(message, " ");
     id = strtok(NULL, " ");
@@ -307,7 +314,17 @@ int getId(char *message) {
     if (convertToNumber(id, &Id) == 0) {
         exitWithError("The Id is not a valid number");
     }
-    return Id;
+    me->Id = Id;
+
+    int numPlayers;
+    char *num = strtok(NULL, " ");
+    assert(num[0] == 'T');
+    num = strtok(NULL, " ");
+    if (convertToNumber(num, &numPlayers) == 0) {
+        exitWithError("The players number is not a valid number");
+    }
+    me->numPlayers = numPlayers;
+    printf("Connected as player %d out of %d total players\n", Id, numPlayers);
 }
 
 int isValidPortNumber(const char *portNum, int *result) {

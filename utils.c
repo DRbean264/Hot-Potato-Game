@@ -24,8 +24,6 @@ void recvMessage(int socket_fd, char *message, int max_limit) {
 
     if (recv_size == -1) {
         exitWithError("Receive message failed");
-    } else if (recv_size == 0) {
-        exitWithError("The ringmaster shut down");
     }
 
     message[recv_size] = '\0';

@@ -53,12 +53,12 @@ The number of hops should be between 0 and 512");
     // setup the ringmaster side socket, used for initial connection
     int *clientFds = malloc(sizeof(*clientFds) * numPlayers);
     int main_socket_fd = setup(NULL, argv[1]);
-    printf("Setup done.\n");
+    // printf("Setup done.\n");
 
     // connect to the players
     // wait until all the players are ready
     waitPlayers(numPlayers, main_socket_fd, clientFds);
-    printf("Players all show up\n");
+    // printf("Players all show up\n");
 
     // manage to connect all the players as a ring
     connectPlayers(numPlayers, clientFds);
@@ -88,8 +88,6 @@ The number of hops should be between 0 and 512");
     return 0;
 }
 
-// Trace of potato:
-// 2,1,2,0,2,1,0,2,...
 void displayResult(char *potato) {
     printf("Trace of potato:\n");
     // Extract the first token
@@ -155,7 +153,7 @@ void connectPlayers(int numPlayers, int *clientFds) {
         // wait for feedback
         char message[MAX_LIMIT];
         recvMessage(clientFds[(i + 1) % numPlayers], message, MAX_LIMIT);
-        printf("%s\n", message);
+        // printf("%s\n", message);
         
         // let player i to connect to it
         message[0] = 'C';
@@ -165,10 +163,10 @@ void connectPlayers(int numPlayers, int *clientFds) {
         recvMessage(clientFds[(i + 1) % numPlayers], message, sizeof(message));
         assert(message[0] == 'D');
 
-        printf("Player %d connected to its neighbor Player %d\n", i, (i + 1) % numPlayers);
+        // printf("Player %d connected to its neighbor Player %d\n", i, (i + 1) % numPlayers);
     }
 
-    printf("All players have formed a ring.\n");
+    // printf("All players have formed a ring.\n");
     // inform all the players the setup is done
     for (int i = 0; i < numPlayers; i++) {
         sendMessage(clientFds[i], "D");
@@ -183,13 +181,13 @@ void connectPlayers(int numPlayers, int *clientFds) {
 
 // wait until all the players are ready
 void waitPlayers(int numPlayers, int main_socket_fd, int *clientFds) {
-    printf("Waiting for connections...\n");
+    // printf("Waiting for connections...\n");
     struct sockaddr_storage socket_addr;
     socklen_t socket_addr_len = sizeof(socket_addr);
     
     int id = 0;
     while (id != numPlayers) {
-        printf("Waiting for player %d...\n", id);
+        // printf("Waiting for player %d...\n", id);
         int client_connection_fd;
         client_connection_fd = accept(main_socket_fd, (struct sockaddr *)&socket_addr, &socket_addr_len);
         if (client_connection_fd == -1) {
@@ -199,7 +197,7 @@ void waitPlayers(int numPlayers, int main_socket_fd, int *clientFds) {
         // assign the id to the client
         clientFds[id] = client_connection_fd;
         char message[MAX_LIMIT];
-        sprintf(message, "I %d", id);
+        sprintf(message, "I %d T %d", id, numPlayers);
         sendMessage(client_connection_fd, message);
 
         // recv feedback from players
