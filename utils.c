@@ -15,7 +15,7 @@ int convertToNumber(const char *str, int *result){
 }
 
 void exitWithError(const char *msg) {
-    fprintf(stderr, "%s\n", msg);
+    // fprintf(stderr, "%s\n", msg);
     exit(EXIT_FAILURE);
 }
 

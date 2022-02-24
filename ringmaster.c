@@ -63,24 +63,27 @@ The number of hops should be between 0 and 512");
     // manage to connect all the players as a ring
     connectPlayers(numPlayers, clientFds);
 
-    // randomly pick a player to start the game
-    srand((unsigned int)time(NULL));
-    int initPlayer = rand() % numPlayers;
+    // if number of hops is not 0, then play the game
+    if (numHops != 0) {
+        // randomly pick a player to start the game
+        srand((unsigned int)time(NULL));
+        int initPlayer = rand() % numPlayers;
 
-    // create the potato
-    char potato[MAX_LIMIT] = {0};
-    sprintf(potato, "%d", numHops);
+        // create the potato
+        char potato[MAX_LIMIT] = {0};
+        sprintf(potato, "%d", numHops - 1);
 
-    // sending the potato to the first player
-    printf("Ready to start the game, sending potato to player %d\n", initPlayer);
-    sendMessage(clientFds[initPlayer], potato);
+        // sending the potato to the first player
+        printf("Ready to start the game, sending potato to player %d\n", initPlayer);
+        sendMessage(clientFds[initPlayer], potato);
 
-    // waiting for the potato to come back
-    memset(potato, 0, sizeof(potato));
-    waitPotato(clientFds, numPlayers, potato);
+        // waiting for the potato to come back
+        memset(potato, 0, sizeof(potato));
+        waitPotato(clientFds, numPlayers, potato);
 
-    // display results
-    displayResult(potato);
+        // display results
+        displayResult(potato);
+    }
 
     // free all the resources
     close(main_socket_fd);
@@ -203,6 +206,7 @@ void waitPlayers(int numPlayers, int main_socket_fd, int *clientFds) {
         // recv feedback from players
         memset(message, 0, sizeof(message));
         recvMessage(client_connection_fd, message, sizeof(message));
+        // printf("%s\n", message);
         assert(message[0] == 'D');
 
         ++id;
